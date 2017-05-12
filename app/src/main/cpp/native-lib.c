@@ -1,59 +1,32 @@
 #include <jni.h>
 
-#include <jni.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include <pthread.h>
 #include <android/bitmap.h>
-#include <android/log.h>
-#include "gauss.h"
-
+#include <gauss.h>
 
 
 //Java虚拟机接口指针
-static JavaVM * gVm = NULL;
 //对象的全局引用
 static jobject gObj = NULL;
 
 
-struct BitmapStruct{
-    int width;
-    int height;
-    int * data;
-};
-
 JNIEXPORT jint JNICALL
-Java_com_example_alw_myapplication_MainActivity_gaussBlur(JNIEnv *env, jclass type, jobject bitmap,
-                                                          jint radius) {
+Java_com_example_alw_myapplication_JNIUtils_gaussBlur(JNIEnv *env, jclass type, jobject bitmap,
+                                                      jint radius) {
 
     AndroidBitmapInfo bmpinfo;
-    if(AndroidBitmap_getInfo(env,bitmap,&bmpinfo) < 0 )
-    {
+    if (AndroidBitmap_getInfo(env, bitmap, &bmpinfo) < 0) {
         return -1;
     }
-    int * bitmapData = NULL;
-    if(AndroidBitmap_lockPixels(env,bitmap,(void**)&bitmapData))
-    {
+    int *bitmapData = NULL;
+    if (AndroidBitmap_lockPixels(env, bitmap, (void **) &bitmapData)) {
         return -1;
     }
 
+    GaussBlur(bitmapData, bmpinfo.width, bmpinfo.height, radius);
 
-    GaussBlur(bitmapData,bmpinfo.width,bmpinfo.height,radius);
-
-    /*struct BitmapStruct * bitmapStruct = (struct BitmapStruct *)malloc(sizeof(struct BitmapStruct));
-    memset(bitmapStruct,0,sizeof(struct BitmapStruct));
-    bitmapStruct->width = bmpinfo.width;
-    bitmapStruct->height = bmpinfo.height;
-    bitmapStruct->data = bitmapData;
-
-    Logger("%swidth=%d,height=%d","Worker...",bitmapStruct->width,bitmapStruct->height);
-
-    pthread_t thread;
-    pthread_create(&thread,NULL,WorkerThread,(void *)bitmapStruct);*/
-
-    AndroidBitmap_unlockPixels(env,bitmap);
+    AndroidBitmap_unlockPixels(env, bitmap);
     return 1;
 
 }
@@ -64,10 +37,9 @@ Java_com_example_alw_myapplication_MainActivity_gaussBlur(JNIEnv *env, jclass ty
         * JNIEnv是一个与线程相关的变量
 **/
 JNIEXPORT void JNICALL Java_cn_byhook_code_CodeSample_nativeInit
-        (JNIEnv * env, jobject obj)
-{
-    if(NULL==gObj){
-        gObj = (* env)->NewGlobalRef(env,obj);
+        (JNIEnv *env, jobject obj) {
+    if (NULL == gObj) {
+        gObj = (*env)->NewGlobalRef(env, obj);
     }
 }
 
@@ -77,9 +49,8 @@ JNIEXPORT void JNICALL Java_cn_byhook_code_CodeSample_nativeInit
  * 创建一个线程可用的全局引用
  **/
 JNIEXPORT void JNICALL Java_cn_byhook_code_CodeSample_nativeFree
-        (JNIEnv * env, jobject obj)
-{
-    (* env)->DeleteGlobalRef(env,gObj);
+        (JNIEnv *env, jobject obj) {
+    (*env)->DeleteGlobalRef(env, gObj);
 }
 
 /**
@@ -87,68 +58,46 @@ JNIEXPORT void JNICALL Java_cn_byhook_code_CodeSample_nativeFree
  * 共享库开始加载的时候自动调用该函数
  * 创建一个线程可用的全局引用
  **/
-jint JNI_OnLoad(JavaVM * vm,void * reserved)
-{
-    gVm = vm;
-    return JNI_VERSION_1_4;
+
+int MAX(int a, int b) {
+    return a > b ? a : b;
 }
 
-void * WorkerThread(void * args){
-    JNIEnv * env = NULL;
-    if(0==(* gVm)->AttachCurrentThread(gVm,&env,NULL)){
-        //可以直接读取原生参数
-        //Execute
-        struct BitmapStruct * bitmapData = (struct BitmapStruct *)args;
-
-        GaussBlur(bitmapData->data,bitmapData->width,bitmapData->height,50);
-        /*int i=10;
-        while(i-->0){
-             Logger("%s%d","Worker...",i);
-        }*/
-        free(bitmapData);
-        (* gVm)->DetachCurrentThread(gVm);
-    }
-    return NULL;
+int MIN(int a, int b) {
+    return a < b ? a : b;
 }
 
-int MAX(int a, int b){
-    return a>b?a:b;
+int ABS(int a) {
+    return a > 0 ? a : -a;
 }
 
-int MIN(int a, int b){
-    return a<b?a:b;
-}
-
-int ABS(int a){
-    return a>0?a:-a;
-}
 /**
  * 高斯模糊算法
  * http://www.cnblogs.com/lipeil/p/3997992.html
  **/
-void GaussBlur(int* pix, int w, int h, int radius) {
+void GaussBlur(int *pix, int w, int h, int radius) {
     int wm = w - 1;
     int hm = h - 1;
     int wh = w * h;
     int div = radius + radius + 1;
 
-    int *r = (int *)malloc(wh * sizeof(int));
-    int *g = (int *)malloc(wh * sizeof(int));
-    int *b = (int *)malloc(wh * sizeof(int));
+    int *r = (int *) malloc(wh * sizeof(int));
+    int *g = (int *) malloc(wh * sizeof(int));
+    int *b = (int *) malloc(wh * sizeof(int));
     int rsum, gsum, bsum, x, y, i, p, yp, yi, yw;
 
-    int *vmin = (int *)malloc(MAX(w,h) * sizeof(int));
+    int *vmin = (int *) malloc(MAX(w, h) * sizeof(int));
 
     int divsum = (div + 1) >> 1;
     divsum *= divsum;
-    int *dv = (int *)malloc(256 * divsum * sizeof(int));
+    int *dv = (int *) malloc(256 * divsum * sizeof(int));
     for (i = 0; i < 256 * divsum; i++) {
         dv[i] = (i / divsum);
     }
 
     yw = yi = 0;
 
-    int(*stack)[3] = (int(*)[3])malloc(div * 3 * sizeof(int));
+    int(*stack)[3] = (int (*)[3]) malloc(div * 3 * sizeof(int));
     int stackpointer;
     int stackstart;
     int *sir;
@@ -174,8 +123,7 @@ void GaussBlur(int* pix, int w, int h, int radius) {
                 rinsum += sir[0];
                 ginsum += sir[1];
                 binsum += sir[2];
-            }
-            else {
+            } else {
                 routsum += sir[0];
                 goutsum += sir[1];
                 boutsum += sir[2];
@@ -254,8 +202,7 @@ void GaussBlur(int* pix, int w, int h, int radius) {
                 rinsum += sir[0];
                 ginsum += sir[1];
                 binsum += sir[2];
-            }
-            else {
+            } else {
                 routsum += sir[0];
                 goutsum += sir[1];
                 boutsum += sir[2];
